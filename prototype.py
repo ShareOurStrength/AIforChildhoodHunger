@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 import gradio as gr
 import requests
-from langchain.chat_models import AzureChatOpenAI
+#from langchain.chat_models import AzureChatOpenAI
+from langchain_community.chat_models import AzureChatOpenAI
 from langchain.prompts import (
     PromptTemplate,
     ChatPromptTemplate,
@@ -14,9 +15,11 @@ from azure.cosmosdb.table.tableservice import TableService
 import pandas as pd
 import langchain
 from langchain.chains.question_answering import load_qa_chain
-from langchain.document_loaders import WebBaseLoader
+#from langchain.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import WebBaseLoader
 from langchain.prompts import PromptTemplate
-from langchain.llms import AzureOpenAI
+#from langchain.llms import AzureOpenAI
+from langchain_community.llms import AzureOpenAI
 from translate import Translator
 from azure.cosmosdb.table.tableservice import TableService
 import pandas as pd
@@ -28,8 +31,9 @@ load_dotenv()
 
 # Create instance to call GPT model
 gpt = AzureChatOpenAI(
-    openai_api_base=os.environ.get("openai_endpoint"),
-    openai_api_version="2023-03-15-preview",
+    #openai_api_base=
+    azure_endpoint=os.environ.get("openai_endpoint"),
+    openai_api_version="2023-03-15-preview",x
     deployment_name=os.environ.get("gpt_deployment_name"),
     openai_api_key=os.environ.get("openai_api_key"),
     openai_api_type = os.environ.get("openai_api_type"),
@@ -41,7 +45,7 @@ def call_gpt_model(rag_from_bing, message):
 
     user_prompt=PromptTemplate(
         template="## Context \n {rag_from_bing} \n" +
-                "## Instructions \n Using the above context, answer the question below.\n" +
+                "## Instructions \n Considering all information you have at your disposal, answer the question below, giving as much specific detail as possible.\n" +
                 "## Question \n {message} \n",
         input_variables=["rag_from_bing", "message"],
     )
@@ -50,13 +54,9 @@ def call_gpt_model(rag_from_bing, message):
 
     # Get formatted messages for the chat completion
     messages = chat_prompt.format_prompt(rag_from_bing={rag_from_bing}, message={message}).to_messages()
-    print("Messages")
-    print(messages)
 
     # Call the model
     output = gpt(messages)
-    print("Output")
-    print(output)
     return output.content
 
 def call_langchain_model(rag_from_bing, docs, user_ask):
@@ -78,7 +78,7 @@ def call_langchain_model(rag_from_bing, docs, user_ask):
 
     chain = load_qa_chain(llm, chain_type="stuff", prompt=PROMPT)
     result = chain({"input_documents": docs, "question": user_ask}, return_only_outputs=True)
-    print(result)
+    #print(result)
     return result["output_text"]
 
 def scrape(urls):
@@ -93,7 +93,7 @@ def scrape(urls):
     # Check if the request was successful
     if response.status_code == 200:
         # Print the HTML content of the response
-        print(response.text)
+        #print(response.text)
         # TODO: consider stripping html tags or any extra tokens?  
         return response.text
     else:
@@ -111,8 +111,6 @@ def chat(message, state):
 
         # # Table storage logic here
         # state = location["region"]
-        # # TODO: We need error handling here to ensure that state is in the right format "Michigan" not "MI" etc.  Get from dropdown?
-        # state = "Washington"
         print("State")
         print(state)
     except KeyError:
@@ -129,8 +127,8 @@ def chat(message, state):
     filteredList = get_dataframe_from_table_storage_table(table_service=ts, filter_query=fq)
     pd.set_option('display.max_colwidth', None)
     #filteredList = df[df["RowKey"] == state]
-    print("Filtered List:")
-    print(filteredList)
+    #print("Filtered List:")
+    #print(filteredList)
 
     eligibility_website = None
     snap_screener = None
@@ -138,36 +136,32 @@ def chat(message, state):
     
     if 'EligibilityWebsite' in filteredList.columns:
         eligibility_website = (filteredList['EligibilityWebsite']).to_string(index=False)
-    print(eligibility_website)
+    #print(eligibility_website)
     
     if 'SnapScreener' in filteredList.columns:
         snap_screener = (filteredList['SnapScreener']).to_string(index=False)
-    print(snap_screener)
+    #print(snap_screener)
     
     if 'OnlineApplication' in filteredList.columns:
         online_application =  (filteredList['OnlineApplication']).to_string(index=False)
-    print(online_application)
+    #print(online_application)
     
     if 'EligibilityPDF' in filteredList.columns:
         eligibility_pdf =  (filteredList['EligibilityPDF']).to_string(index=False)
-    print(eligibility_pdf)
+    #print(eligibility_pdf)
     
     urls_list = [eligibility_website, snap_screener, online_application, eligibility_pdf]
-    print(urls_list)
+    #print(urls_list)
     urls = [x for x in urls_list if x is not None and x != "NaN"]
         
-    # TODO - do we need logic here to see if we have sufficient trusted source data, or whether we even need to call Bing?  # Call Bing to get context
+    #Did some testing with this, not necessary nor helpful with helper program
+    
     #bing_response = bingsearch.call_search_api(query, bing_endpoint, bing_api_key)
     #rag_from_bing = bing_response
     rag_from_bing = ""
 
-    # Get information from trusted sources
-    # TODO: test this integration.  Are we pulling all resources or missing some columns?  Do we need better error checking for null values?  etc.    docs = scrape(urls)
     docs = scrape(urls)
     gov_docs_langchain_response = call_langchain_model(rag_from_bing, docs, message)
-    
-    #query =  "If I live in " + location["city"] + ", " + location["region"] + ", am I eligibile for SNAP - Supplemental Nutrition Assistance Program (Food Stamps), WIC - Women, Infants and Children, SFSP and SSO (summer food services for kids)?"
-    #print(query)
     
     # Call GPT model with context from Bing
     #model_response =call_gpt_model(rag_from_bing, message)
@@ -213,12 +207,9 @@ def translate_to_spanish(input_text):
         return spanish_text
     except Exception as e:
         return str(e)
-    # Example usage:
-    #input_text = "Hello, how are you?"
-    #spanish_text = translate_to_spanish(input_text)
-    #print(spanish_text)
 
 # UI components (using Gradio - https://gradio.app)
+# This section no longer does anything
 chatbot = gr.Chatbot(bubble_full_width = False)
 with gr.Blocks() as sosChatBot:
     with gr.Row():
@@ -230,6 +221,4 @@ with gr.Blocks() as sosChatBot:
     with gr.Row():
         chat_interface = gr.ChatInterface(fn=chat, chatbot=chatbot)
         
-
-
 #sosChatBot.launch()
