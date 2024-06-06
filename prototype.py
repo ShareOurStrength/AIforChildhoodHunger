@@ -33,7 +33,7 @@ load_dotenv()
 gpt = AzureChatOpenAI(
     #openai_api_base=
     azure_endpoint=os.environ.get("openai_endpoint"),
-    openai_api_version="2023-03-15-preview",x
+    openai_api_version="2023-03-15-preview",
     deployment_name=os.environ.get("gpt_deployment_name"),
     openai_api_key=os.environ.get("openai_api_key"),
     openai_api_type = os.environ.get("openai_api_type"),
